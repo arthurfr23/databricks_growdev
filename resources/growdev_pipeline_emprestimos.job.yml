@@ -1,0 +1,127 @@
+# Versão final do job do projeto (estado ao fim do Agrupamento 6).
+resources:
+  jobs:
+    growdev_pipeline_emprestimos:
+      name: growdev_pipeline_emprestimos
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+
+      parameters:
+        - name: catalogo
+          default: ${var.catalogo}
+        - name: limite_nulos_pct
+          default: "5"
+        - name: limite_risco_pct
+          default: "10"
+        - name: simular_falha
+          default: "nao"
+
+      trigger:
+        file_arrival:
+          url: /Volumes/${var.catalogo}/bronze/landing/loans/
+          min_time_between_triggers_seconds: 60
+          wait_after_last_change_seconds: 60
+
+      timeout_seconds: 3600
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 1200
+
+      email_notifications:
+        on_failure:
+          - ${workspace.current_user.userName}
+        on_duration_warning_threshold_exceeded:
+          - ${workspace.current_user.userName}
+
+      tasks:
+        - task_key: preparar_ambiente
+          notebook_task:
+            notebook_path: ../Projeto/00_preparar_ambiente.ipynb
+
+        - task_key: bronze
+          depends_on:
+            - task_key: preparar_ambiente
+          for_each_task:
+            inputs: '["customers", "accounts", "account_balances", "loans"]'
+            concurrency: 2
+            task:
+              task_key: bronze_tabela
+              max_retries: 2
+              min_retry_interval_millis: 30000
+              notebook_task:
+                notebook_path: ../Projeto/01_bronze.ipynb
+                base_parameters:
+                  tabela: "{{input}}"
+
+        - task_key: silver
+          depends_on:
+            - task_key: bronze
+          max_retries: 2
+          min_retry_interval_millis: 30000
+          timeout_seconds: 1800
+          notebook_task:
+            notebook_path: ../Projeto/02_silver.ipynb
+
+        - task_key: validar_qualidade
+          depends_on:
+            - task_key: silver
+          notebook_task:
+            notebook_path: ../Projeto/04_validar_qualidade.ipynb
+
+        - task_key: qualidade_ok
+          depends_on:
+            - task_key: validar_qualidade
+          condition_task:
+            left: "{{tasks.validar_qualidade.values.qualidade_ok}}"
+            op: EQUAL_TO
+            right: "true"
+
+        - task_key: gold
+          depends_on:
+            - task_key: qualidade_ok
+              outcome: "true"
+          max_retries: 2
+          min_retry_interval_millis: 30000
+          timeout_seconds: 1800
+          notebook_task:
+            notebook_path: ../Projeto/03_gold.ipynb
+
+        - task_key: registrar_alerta_qualidade
+          depends_on:
+            - task_key: qualidade_ok
+              outcome: "false"
+          notebook_task:
+            notebook_path: ../Projeto/05_registrar_alerta_qualidade.ipynb
+            base_parameters:
+              job_run_id: "{{job.run_id}}"
+
+        - task_key: risco_alto
+          depends_on:
+            - task_key: gold
+          condition_task:
+            left: "{{tasks.gold.values.taxa_inadimplencia_pct}}"
+            op: GREATER_THAN
+            right: "{{job.parameters.limite_risco_pct}}"
+
+        - task_key: alerta_risco
+          depends_on:
+            - task_key: risco_alto
+              outcome: "true"
+          notebook_task:
+            notebook_path: ../Projeto/06_alerta_risco.ipynb
+            base_parameters:
+              job_run_id: "{{job.run_id}}"
+
+        - task_key: registrar_execucao
+          depends_on:
+            - task_key: gold
+            - task_key: alerta_risco
+            - task_key: registrar_alerta_qualidade
+          run_if: ALL_DONE
+          notebook_task:
+            notebook_path: ../Projeto/07_registrar_execucao.ipynb
+            base_parameters:
+              job_run_id: "{{job.run_id}}"

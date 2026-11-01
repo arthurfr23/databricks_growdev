@@ -1,0 +1,18 @@
+# Aula 21: módulo de ingestão.
+resources:
+  jobs:
+    growdev_ingestao:
+      name: growdev_ingestao
+      parameters:
+        - name: catalogo
+          default: ${var.catalogo}
+      tasks:
+        - task_key: preparar_ambiente
+          notebook_task:
+            notebook_path: ../Projeto/00_preparar_ambiente.ipynb
+        - task_key: bronze
+          depends_on:
+            - task_key: preparar_ambiente
+          notebook_task:
+            notebook_path: ../Projeto/01_bronze.ipynb
+

@@ -1,0 +1,20 @@
+bundle:
+  name: growdev_orquestracao
+
+include:
+  - resources/*.yml
+
+sync:
+  exclude:
+    - "Agrupamento */**"
+    - ".DS_Store"
+
+variables:
+  catalogo:
+    description: Catálogo do projeto
+    default: growdev
+
+targets:
+  dev:
+    mode: development
+    default: true

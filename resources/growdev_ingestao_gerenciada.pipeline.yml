@@ -1,0 +1,14 @@
+# Aula 22: pipeline de ingestão (Lakeflow Connect, conector padrão de arquivos).
+resources:
+  pipelines:
+    growdev_ingestao_gerenciada:
+      name: growdev_ingestao_gerenciada
+      catalog: ${var.catalogo}
+      schema: bronze
+      serverless: true
+      configuration:
+        catalogo: ${var.catalogo}
+      libraries:
+        - file:
+            path: ../Projeto/pipeline_ingestao/ingestao_loans.sql
+

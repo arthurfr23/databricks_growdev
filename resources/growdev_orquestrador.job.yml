@@ -1,0 +1,26 @@
+# Aulas 21 e 22: orquestrador que chama o pipeline e os jobs modulares.
+resources:
+  jobs:
+    growdev_orquestrador:
+      name: growdev_orquestrador
+      parameters:
+        - name: catalogo
+          default: ${var.catalogo}
+      tasks:
+        - task_key: ingestao_gerenciada
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.growdev_ingestao_gerenciada.id}
+        - task_key: executar_ingestao
+          depends_on:
+            - task_key: ingestao_gerenciada
+          run_job_task:
+            job_id: ${resources.jobs.growdev_ingestao.id}
+            job_parameters:
+              catalogo: "{{job.parameters.catalogo}}"
+        - task_key: executar_transformacao
+          depends_on:
+            - task_key: executar_ingestao
+          run_job_task:
+            job_id: ${resources.jobs.growdev_transformacao.id}
+            job_parameters:
+              catalogo: "{{job.parameters.catalogo}}"
