@@ -86,6 +86,9 @@ resources:
           max_retries: 2
           min_retry_interval_millis: 30000
           timeout_seconds: 1800
+          email_notifications:
+            on_failure:
+              - ${workspace.current_user.userName}
           notebook_task:
             notebook_path: ../Projeto/03_gold.ipynb
 
